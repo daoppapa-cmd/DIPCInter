@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MEN PC Inventory System (Clean Mobile UI)</title>
+    <title>MEN PC Inventory System (Date & Time Tracking)</title>
     
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -103,7 +103,8 @@
             AlertCircle,
             Database,
             ChevronRight,
-            Package
+            Package,
+            Clock
         } from 'lucide-react';
 
         // --- Firebase Configuration ---
@@ -137,7 +138,6 @@
 
         const STATUS_OPTIONS = [
             { id: 'using', label: 'កំពុងប្រើប្រាស់', color: 'bg-emerald-100 text-emerald-700 ring-emerald-500/20', icon: <CheckCircle2 size={16} /> },
-            { id: 'repairing', label: 'ជួសជុល', color: 'bg-amber-100 text-amber-700 ring-amber-500/20', icon: <Wrench size={16} /> },
             { id: 'broken', label: 'ខូច', color: 'bg-rose-100 text-rose-700 ring-rose-500/20', icon: <XCircle size={16} /> },
         ];
 
@@ -147,9 +147,10 @@
             const [loading, setLoading] = useState(true);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
-            const [dbStatus, setDbStatus] = useState('connecting');
             const [itemToDelete, setItemToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState('home'); 
+            
+            // Form State
             const [editingId, setEditingId] = useState(null);
             const [newItemType, setNewItemType] = useState(ITEM_TYPES[0].label);
             const [newStatus, setNewStatus] = useState(STATUS_OPTIONS[0].label);
@@ -173,17 +174,38 @@
                             fetchedItems.push({ id: key, ...data[key] });
                         });
                     }
-                    fetchedItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    // Sort by updatedAt desc (Latest update first)
+                    fetchedItems.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
                     setItems(fetchedItems);
                     setLoading(false);
-                    setDbStatus('connected');
                 }, (error) => {
                     console.error("Database Error:", error);
                     setLoading(false);
-                    setDbStatus('error');
                 });
                 return () => unsubscribe();
             }, []);
+
+            // --- Duplicate Logic Check ---
+            const isDuplicate = useMemo(() => {
+                return items.some(item => 
+                    item.type === newItemType && 
+                    item.status === newStatus && 
+                    item.id !== editingId
+                );
+            }, [items, newItemType, newStatus, editingId]);
+
+            // Helpers
+            const formatDate = (timestamp) => {
+                if (!timestamp) return '';
+                const date = new Date(timestamp);
+                return date.toLocaleDateString('km-KH', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
 
             // Handlers
             const handleOpenAdd = () => {
@@ -204,25 +226,35 @@
 
             const handleSaveItem = async (e) => {
                 e.preventDefault();
-                if (quantity < 1) return;
+                if (quantity < 1 || isDuplicate) return;
+
                 setIsSubmitting(true);
                 const userId = user ? user.uid : 'public_user'; 
                 try {
-                    const timestamp = Date.now();
+                    // --- Date & Time Logic ---
+                    const now = new Date();
+                    const timestamp = now.getTime(); // Timestamp for sorting/logic
+                    const readableDate = now.toLocaleString('en-GB'); // Readable string "DD/MM/YYYY, HH:mm:ss"
+
                     if (editingId) {
+                        // UPDATE: Save updatedAt and lastUpdated string
                         await update(ref(db, 'inventory/' + editingId), {
                             type: newItemType,
                             status: newStatus,
                             quantity: parseInt(quantity),
                             updatedAt: timestamp,
+                            lastUpdatedDate: readableDate,
                             lastModifiedBy: userId
                         });
                     } else {
+                        // CREATE: Save createdAt, updatedAt, and lastUpdatedDate
                         await set(push(ref(db, 'inventory')), {
                             type: newItemType,
                             status: newStatus,
                             quantity: parseInt(quantity),
                             createdAt: timestamp,
+                            updatedAt: timestamp,
+                            lastUpdatedDate: readableDate,
                             createdBy: userId
                         });
                     }
@@ -248,12 +280,11 @@
 
             // Stats
             const stats = useMemo(() => {
-                const initial = { using: 0, repairing: 0, broken: 0, total: 0 };
+                const initial = { using: 0, broken: 0, total: 0 };
                 return items.reduce((acc, item) => {
                     const qty = item.quantity || 0;
                     acc.total += qty;
                     if (item.status === 'កំពុងប្រើប្រាស់') acc.using += qty;
-                    else if (item.status === 'ជួសជុល') acc.repairing += qty;
                     else if (item.status === 'ខូច') acc.broken += qty;
                     return acc;
                 }, initial);
@@ -350,9 +381,14 @@
                                                                         {statusInfo.icon}
                                                                         {statusInfo.label}
                                                                     </span>
+                                                                    {/* Date Display */}
+                                                                    <span className="text-[10px] text-slate-400 flex items-center gap-1 ml-auto font-medium">
+                                                                        <Clock size={10} />
+                                                                        {formatDate(item.updatedAt)}
+                                                                    </span>
                                                                 </div>
                                                             </div>
-                                                            <div className="text-slate-300">
+                                                            <div className="text-slate-300 self-center pl-2">
                                                                 <ChevronRight size={20} />
                                                             </div>
                                                         </div>
@@ -380,7 +416,6 @@
                                     <div className="grid grid-cols-1 gap-3">
                                         {[
                                             { label: 'កំពុងប្រើប្រាស់', count: stats.using, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <CheckCircle2 /> },
-                                            { label: 'ជួសជុល', count: stats.repairing, color: 'text-amber-600', bg: 'bg-amber-50', icon: <Wrench /> },
                                             { label: 'ខូច', count: stats.broken, color: 'text-rose-600', bg: 'bg-rose-50', icon: <XCircle /> },
                                         ].map((stat, idx) => (
                                             <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
@@ -573,12 +608,31 @@
                                         </div>
                                     </div>
 
+                                    {/* Warning Message for Duplicates */}
+                                    {isDuplicate && (
+                                        <div className="flex items-start gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                                            <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                                            <div>
+                                                <p className="text-sm font-bold text-amber-800">ទិន្នន័យនេះមានរួចហើយ!</p>
+                                                <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                                                    ប្រភេទ <b>{newItemType}</b> ({newStatus}) មានក្នុងស្តុករួចហើយ។ សូមចូលទៅកែប្រែ (Edit) លើទិន្នន័យដែលមានស្រាប់។
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <button 
                                         type="submit" 
-                                        disabled={isSubmitting} 
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-lg shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:scale-100 mt-4"
+                                        disabled={isSubmitting || isDuplicate} 
+                                        className={`w-full font-bold py-4 rounded-2xl text-lg shadow-lg transition-all mt-4
+                                            ${isDuplicate 
+                                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30 active:scale-[0.98]'
+                                            }
+                                            ${isSubmitting ? 'opacity-70 scale-100' : ''}
+                                        `}
                                     >
-                                        {isSubmitting ? '...' : 'រក្សាទុក'}
+                                        {isSubmitting ? 'កំពុងរក្សាទុក...' : (editingId ? 'កែប្រែទិន្នន័យ' : 'រក្សាទុក')}
                                     </button>
                                 </form>
                             </div>
