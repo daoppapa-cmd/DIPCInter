@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MEN PC Inventory System (Close Button Added)</title>
+    <title>MEN PC Inventory (Modern UI)</title>
     
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,26 +18,40 @@
         body {
             font-family: 'Kantumruy Pro', sans-serif;
             -webkit-tap-highlight-color: transparent;
-        }
-        /* Hide Scrollbar but allow scrolling */
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Safe area for mobile */
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        .pt-safe {
-            padding-top: env(safe-area-inset-top);
+            background-color: #F3F4F6;
         }
         
-        /* Smooth scrolling */
-        html {
-            scroll-behavior: smooth;
+        /* Safe area for mobile */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+        
+        /* Hide Scrollbar */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.5s ease-out forwards;
+        }
+        
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-scale-in {
+            animation: scaleIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
     </style>
 
@@ -55,7 +69,7 @@
     }
     </script>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700">
+<body class="bg-gray-50 text-slate-800 antialiased">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
@@ -104,7 +118,9 @@
             Database,
             ChevronRight,
             Package,
-            Clock
+            Clock,
+            LayoutGrid,
+            Settings
         } from 'lucide-react';
 
         // --- Firebase Configuration ---
@@ -125,20 +141,20 @@
 
         // --- Constants ---
         const ITEM_TYPES = [
-            { id: 'case', label: 'Case', icon: <HardDrive size={24} /> },
-            { id: 'monitor', label: 'Monitor', icon: <Monitor size={24} /> },
-            { id: 'keyboard', label: 'Keyboard', icon: <Keyboard size={24} /> },
-            { id: 'mouse', label: 'Mouse', icon: <MousePointer size={24} /> },
-            { id: 'mouse_pad', label: 'Mouse Pad', icon: <div className="w-6 h-6 border-2 border-current rounded bg-current opacity-50" /> },
-            { id: 'headset', label: 'Headset', icon: <Headphones size={24} /> },
-            { id: 'adapter_monitor', label: 'Adapter Monitor', icon: <Cable size={24} /> },
-            { id: 'adapter_power', label: 'Adapter Power', icon: <Cable size={24} /> },
-            { id: 'hdmi', label: 'HDMI', icon: <Cable size={24} /> },
+            { id: 'case', label: 'Case', icon: <HardDrive size={22} /> },
+            { id: 'monitor', label: 'Monitor', icon: <Monitor size={22} /> },
+            { id: 'keyboard', label: 'Keyboard', icon: <Keyboard size={22} /> },
+            { id: 'mouse', label: 'Mouse', icon: <MousePointer size={22} /> },
+            { id: 'mouse_pad', label: 'Mouse Pad', icon: <div className="w-5 h-5 border-2 border-current rounded-md bg-current opacity-60" /> },
+            { id: 'headset', label: 'Headset', icon: <Headphones size={22} /> },
+            { id: 'adapter_monitor', label: 'Adapter Monitor', icon: <Cable size={22} /> },
+            { id: 'adapter_power', label: 'Adapter Power', icon: <Cable size={22} /> },
+            { id: 'hdmi', label: 'HDMI', icon: <Cable size={22} /> },
         ];
 
         const STATUS_OPTIONS = [
-            { id: 'using', label: 'កំពុងប្រើប្រាស់', color: 'bg-emerald-100 text-emerald-700 ring-emerald-500/20', icon: <CheckCircle2 size={16} /> },
-            { id: 'broken', label: 'ខូច', color: 'bg-rose-100 text-rose-700 ring-rose-500/20', icon: <XCircle size={16} /> },
+            { id: 'using', label: 'កំពុងប្រើប្រាស់', color: 'bg-emerald-50 text-emerald-600 ring-emerald-500/30', icon: <CheckCircle2 size={16} /> },
+            { id: 'broken', label: 'ខូច', color: 'bg-rose-50 text-rose-600 ring-rose-500/30', icon: <XCircle size={16} /> },
         ];
 
         function InventoryApp() {
@@ -174,7 +190,6 @@
                             fetchedItems.push({ id: key, ...data[key] });
                         });
                     }
-                    // Sort by updatedAt desc
                     fetchedItems.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
                     setItems(fetchedItems);
                     setLoading(false);
@@ -185,7 +200,7 @@
                 return () => unsubscribe();
             }, []);
 
-            // --- Duplicate Logic Check ---
+            // Check for duplicates
             const isDuplicate = useMemo(() => {
                 return items.some(item => 
                     item.type === newItemType && 
@@ -194,20 +209,19 @@
                 );
             }, [items, newItemType, newStatus, editingId]);
 
-            // Helpers
             const formatDate = (timestamp) => {
                 if (!timestamp) return '';
                 const date = new Date(timestamp);
-                return date.toLocaleDateString('km-KH', {
+                return date.toLocaleDateString('en-GB', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    hour12: true
                 });
             };
 
-            // Handlers
             const handleOpenAdd = () => {
                 setEditingId(null);
                 setNewItemType(ITEM_TYPES[0].label);
@@ -224,6 +238,11 @@
                 setIsModalOpen(true);
             };
 
+            const handleDeleteClick = (item) => {
+                setItemToDelete(item);
+                setIsModalOpen(false);
+            };
+
             const handleSaveItem = async (e) => {
                 e.preventDefault();
                 if (quantity < 1 || isDuplicate) return;
@@ -236,7 +255,6 @@
                     const readableDate = now.toLocaleString('en-GB'); 
 
                     if (editingId) {
-                        // UPDATE
                         await update(ref(db, 'inventory/' + editingId), {
                             type: newItemType,
                             status: newStatus,
@@ -246,7 +264,6 @@
                             lastModifiedBy: userId
                         });
                     } else {
-                        // CREATE
                         await set(push(ref(db, 'inventory')), {
                             type: newItemType,
                             status: newStatus,
@@ -265,11 +282,6 @@
                 } finally {
                     setIsSubmitting(false);
                 }
-            };
-
-            const handleDeleteClick = (item) => {
-                setItemToDelete(item);
-                setIsModalOpen(false);
             };
 
             const confirmDelete = async () => {
@@ -303,42 +315,44 @@
             const getItemIcon = (typeLabel) => (ITEM_TYPES.find(t => t.label === typeLabel) || ITEM_TYPES[0]).icon;
 
             if (loading && !items.length) return (
-                <div className="flex h-screen items-center justify-center bg-slate-50">
-                    <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p className="text-slate-500 font-medium">កំពុងផ្ទុកទិន្នន័យ...</p>
+                <div className="flex h-screen items-center justify-center bg-gray-50">
+                    <div className="flex flex-col items-center animate-pulse">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-500 mb-4">
+                            <Database size={24} className="animate-bounce" />
+                        </div>
+                        <p className="text-slate-400 font-medium text-sm tracking-wide">កំពុងទាញទិន្នន័យ...</p>
                     </div>
                 </div>
             );
 
             return (
-                <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden">
+                <div className="h-screen w-full bg-gray-50/50 flex flex-col font-sans overflow-hidden">
                     
                     {/* --- Content Area --- */}
                     <main className="flex-1 overflow-y-auto hide-scrollbar pb-32">
                         
                         {/* VIEW 1: HOME */}
                         {activeTab === 'home' && (
-                            <>
-                                {/* Modern Header with Search */}
-                                <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200/60 pt-safe px-5 pb-4">
+                            <div className="animate-fade-in-up">
+                                {/* Modern Header with Glassmorphism */}
+                                <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-white/50 pt-safe px-5 pb-2 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)]">
                                     <div className="flex items-center justify-between py-4">
                                         <div>
-                                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">ស្តុកសម្ភារៈ</h1>
-                                            <p className="text-xs font-medium text-slate-500">MEN PC Inventory • RTDB</p>
+                                            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">ស្តុកសម្ភារៈ</h1>
+                                            <p className="text-xs font-medium text-slate-400 mt-0.5">MEN PC Inventory</p>
                                         </div>
-                                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-sm">
-                                            <Database size={20} />
+                                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                                            <Package size={20} />
                                         </div>
                                     </div>
                                     
-                                    <div className="relative group">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Search className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                    <div className="relative group pb-3">
+                                        <div className="absolute top-3.5 left-4 text-slate-400 group-focus-within:text-blue-500 transition-colors duration-300">
+                                            <Search size={20} />
                                         </div>
                                         <input 
                                             type="text" 
-                                            className="block w-full pl-10 pr-3 py-3.5 border-none rounded-2xl bg-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all shadow-sm" 
+                                            className="w-full pl-12 pr-4 py-3.5 bg-slate-100/80 border-none rounded-2xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all shadow-inner" 
                                             placeholder="ស្វែងរកសម្ភារៈ..." 
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -348,50 +362,56 @@
 
                                 {/* Inventory List */}
                                 <div className="px-5 pt-6 pb-6">
-                                    <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex justify-between items-center">
-                                        <span>បញ្ជី ({filteredItems.length})</span>
-                                    </h2>
-                                    <div className="space-y-3">
+                                    <div className="flex items-center justify-between mb-4 px-1">
+                                        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                                            បញ្ជីសរុប <span className="ml-1 bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">{filteredItems.length}</span>
+                                        </h2>
+                                    </div>
+                                    
+                                    <div className="space-y-3.5">
                                         {filteredItems.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-16 text-center">
-                                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
-                                                    <Package size={32} />
+                                            <div className="flex flex-col items-center justify-center py-20 text-center opacity-60">
+                                                <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-4">
+                                                    <Box size={32} className="text-slate-300" />
                                                 </div>
                                                 <p className="text-slate-500 font-medium">មិនមានទិន្នន័យទេ</p>
                                                 <p className="text-xs text-slate-400 mt-1">សូមចុចប៊ូតុង + ដើម្បីបន្ថែម</p>
                                             </div>
                                         ) : (
-                                            filteredItems.map((item) => {
+                                            filteredItems.map((item, index) => {
                                                 const statusInfo = getStatusStyle(item.status);
                                                 return (
                                                     <div 
                                                         key={item.id} 
                                                         onClick={() => handleOpenEdit(item)}
-                                                        className="group bg-white p-4 rounded-2xl shadow-sm border border-slate-100 active:scale-[0.98] transition-all relative overflow-hidden"
+                                                        className="group bg-white p-4 rounded-2xl border border-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-all duration-300 relative overflow-hidden"
+                                                        style={{ animationDelay: `${index * 0.05}s` }}
                                                     >
                                                         <div className="flex items-center gap-4 relative z-10">
-                                                            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
+                                                            <div className="w-14 h-14 rounded-2xl bg-slate-50 text-slate-600 flex items-center justify-center shrink-0 shadow-inner group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors duration-300">
                                                                 {getItemIcon(item.type)}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex justify-between items-start">
-                                                                    <h3 className="font-bold text-slate-900 truncate text-base">{item.type}</h3>
-                                                                    <span className="text-lg font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg min-w-[2rem] text-center">
+                                                                    <h3 className="font-bold text-slate-800 truncate text-[15px]">{item.type}</h3>
+                                                                    <span className="text-lg font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg min-w-[2rem] text-center group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
                                                                         {item.quantity}
                                                                     </span>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 mt-1.5">
-                                                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 ring-1 ring-inset ${statusInfo.color}`}>
+                                                                <div className="flex flex-wrap items-center gap-y-2 gap-x-3 mt-1.5">
+                                                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 ring-1 ring-inset ${statusInfo.color}`}>
                                                                         {statusInfo.icon}
                                                                         {statusInfo.label}
                                                                     </span>
-                                                                    <span className="text-[10px] text-slate-400 flex items-center gap-1 ml-auto font-medium">
-                                                                        <Clock size={10} />
-                                                                        {formatDate(item.updatedAt)}
-                                                                    </span>
+                                                                    {item.lastUpdatedDate && (
+                                                                        <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium bg-slate-50 px-2 py-1 rounded-md">
+                                                                            <Clock size={10} />
+                                                                            {item.lastUpdatedDate.split(',')[0]} {item.lastUpdatedDate.split(',')[1]}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-slate-300 self-center pl-2">
+                                                            <div className="text-slate-300 group-hover:text-blue-400 transition-colors">
                                                                 <ChevronRight size={20} />
                                                             </div>
                                                         </div>
@@ -401,34 +421,48 @@
                                         )}
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
 
                         {/* VIEW 2: STATS PAGE */}
                         {activeTab === 'stats' && (
-                            <div className="pt-safe px-5 pb-6">
-                                <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-6">របាយការណ៍</h1>
-                                <div className="space-y-4">
-                                    <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-6 rounded-3xl shadow-lg shadow-blue-600/20 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                                        <p className="text-blue-100 text-sm font-medium mb-1">ចំនួនសរុបទាំងអស់</p>
-                                        <h2 className="text-5xl font-bold tracking-tight">{stats.total}</h2>
-                                        <p className="text-blue-200 text-xs mt-2">ឯកតាក្នុងស្តុក</p>
+                            <div className="pt-safe px-5 pb-6 animate-fade-in-up">
+                                <h1 className="text-2xl font-bold text-slate-800 mt-6 mb-6 px-1">របាយការណ៍</h1>
+                                <div className="space-y-5">
+                                    {/* Total Card with Gradient */}
+                                    <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 text-white p-7 rounded-[32px] shadow-xl shadow-blue-600/30 relative overflow-hidden group">
+                                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-500"></div>
+                                        <div className="absolute bottom-0 left-0 w-full h-full bg-gradient-to-t from-black/10 to-transparent"></div>
+                                        
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-2 mb-2 opacity-90">
+                                                <LayoutGrid size={18} />
+                                                <p className="text-sm font-medium tracking-wide">ចំនួនសរុបទាំងអស់</p>
+                                            </div>
+                                            <h2 className="text-6xl font-bold tracking-tighter drop-shadow-sm">{stats.total}</h2>
+                                            <p className="text-blue-200 text-xs mt-2 font-medium bg-white/10 inline-block px-3 py-1 rounded-full backdrop-blur-sm">
+                                                ឯកតាក្នុងស្តុក
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-3">
+                                    <div className="grid grid-cols-1 gap-4">
                                         {[
-                                            { label: 'កំពុងប្រើប្រាស់', count: stats.using, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <CheckCircle2 /> },
-                                            { label: 'ខូច', count: stats.broken, color: 'text-rose-600', bg: 'bg-rose-50', icon: <XCircle /> },
+                                            { label: 'កំពុងប្រើប្រាស់', count: stats.using, color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-100', icon: <CheckCircle2 className="drop-shadow-sm" /> },
+                                            { label: 'ខូច', count: stats.broken, color: 'text-rose-600', bg: 'bg-rose-50', ring: 'ring-rose-100', icon: <XCircle className="drop-shadow-sm" /> },
                                         ].map((stat, idx) => (
-                                            <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-12 h-12 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                                            <div key={idx} className="bg-white p-5 rounded-3xl border border-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex items-center justify-between relative overflow-hidden group">
+                                                <div className={`absolute right-0 top-0 w-20 h-full bg-gradient-to-l from-${stat.bg.split('-')[1]}-50/50 to-transparent`}></div>
+                                                <div className="flex items-center gap-5 relative z-10">
+                                                    <div className={`w-14 h-14 rounded-2xl ${stat.bg} ${stat.color} ring-4 ${stat.ring} flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300`}>
                                                         {stat.icon}
                                                     </div>
-                                                    <span className="font-medium text-slate-600">{stat.label}</span>
+                                                    <div>
+                                                        <span className="block text-sm text-slate-400 font-medium mb-0.5">ស្ថានភាព</span>
+                                                        <span className="text-base font-bold text-slate-700">{stat.label}</span>
+                                                    </div>
                                                 </div>
-                                                <span className={`text-2xl font-bold ${stat.color}`}>{stat.count}</span>
+                                                <span className={`text-3xl font-bold ${stat.color} relative z-10`}>{stat.count}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -438,18 +472,30 @@
 
                         {/* VIEW 3: PROFILE */}
                         {activeTab === 'profile' && (
-                            <div className="pt-safe px-5 flex flex-col items-center justify-center min-h-[70vh]">
-                                <div className="w-24 h-24 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-300 mb-6 border-4 border-slate-50">
-                                    <User size={48} />
+                            <div className="pt-safe px-5 flex flex-col items-center justify-center min-h-[75vh] animate-fade-in-up">
+                                <div className="relative mb-8 group">
+                                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                                    <div className="relative w-28 h-28 bg-white rounded-full shadow-xl flex items-center justify-center text-slate-300 border-4 border-white">
+                                        <User size={52} strokeWidth={1.5} />
+                                    </div>
+                                    <div className="absolute bottom-1 right-1 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center">
+                                        <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
+                                    </div>
                                 </div>
-                                <h2 className="text-xl font-bold text-slate-900">{user ? "Admin User" : "Public Guest"}</h2>
-                                <p className="text-sm text-slate-400 font-mono mt-1 mb-6">
-                                    UID: {user ? user.uid.slice(0, 8) : 'N/A'}...
+                                
+                                <h2 className="text-2xl font-bold text-slate-800 mb-1">{user ? "Admin User" : "Public Guest"}</h2>
+                                <p className="text-sm text-slate-400 font-mono bg-slate-100 px-3 py-1 rounded-lg mb-8">
+                                    ID: {user ? user.uid.slice(0, 8) : 'N/A'}...
                                 </p>
                                 
-                                <div className="w-full max-w-xs space-y-3">
-                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
-                                        <span className="text-slate-500 text-sm">ស្ថានភាព</span>
+                                <div className="w-full max-w-xs space-y-4">
+                                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                                <Settings size={18} />
+                                            </div>
+                                            <span className="text-slate-600 text-sm font-medium">ស្ថានភាព</span>
+                                        </div>
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${user ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                                             {user ? 'Online' : 'Guest'}
                                         </span>
@@ -458,32 +504,35 @@
                                     <button 
                                         onClick={() => { if(confirm('ចាកចេញ?')) signOut(auth); }} 
                                         disabled={!user}
-                                        className="w-full bg-rose-50 text-rose-600 font-bold p-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full bg-white border-2 border-rose-100 text-rose-600 font-bold p-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-rose-50 hover:border-rose-200 transition-all duration-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
                                     >
-                                        <LogOut size={20} />
+                                        <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
                                         ចាកចេញ
                                     </button>
                                 </div>
-                                <p className="mt-8 text-xs text-slate-300 text-center">Version 2.0.0 (RTDB)</p>
+                                
+                                <p className="mt-12 text-[10px] text-slate-300 font-medium tracking-widest uppercase">
+                                    Version 2.5.0 • RTDB
+                                </p>
                             </div>
                         )}
                     </main>
 
                     {/* FAB (Floating Action Button) */}
                     {activeTab === 'home' && (
-                        <div className="fixed bottom-24 right-5 z-30">
+                        <div className="fixed bottom-24 right-5 z-30 animate-scale-in">
                             <button 
                                 onClick={handleOpenAdd}
-                                className="w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/40 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+                                className="w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-600/40 flex items-center justify-center transition-all hover:scale-105 active:scale-95 active:shadow-blue-600/20"
                             >
-                                <Plus size={32} strokeWidth={2.5} />
+                                <Plus size={28} strokeWidth={2.5} />
                             </button>
                         </div>
                     )}
 
-                    {/* Bottom Navigation */}
-                    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 pb-safe z-40">
-                        <div className="flex justify-around items-center h-16">
+                    {/* Bottom Navigation with Glassmorphism */}
+                    <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-white/50 pb-safe z-40 shadow-[0_-5px_20px_-5px_rgba(0,0,0,0.05)]">
+                        <div className="flex justify-around items-center h-16 px-2">
                             {[
                                 { id: 'home', icon: Home, label: 'ទំព័រដើម' },
                                 { id: 'stats', icon: BarChart2, label: 'ស្ថិតិ' },
@@ -492,13 +541,17 @@
                                 <button 
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`relative flex flex-col items-center justify-center w-full h-full transition-colors ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-400'}`}
+                                    className="relative flex-1 flex flex-col items-center justify-center h-full group"
                                 >
+                                    <div className={`p-1.5 rounded-xl transition-all duration-300 ${activeTab === tab.id ? 'text-blue-600 -translate-y-1' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                                        <tab.icon size={24} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+                                    </div>
+                                    <span className={`text-[10px] font-medium transition-all duration-300 ${activeTab === tab.id ? 'text-blue-600 opacity-100 -translate-y-0.5' : 'text-slate-400 opacity-0 translate-y-2 absolute bottom-2'}`}>
+                                        {tab.label}
+                                    </span>
                                     {activeTab === tab.id && (
-                                        <span className="absolute top-0 w-8 h-1 bg-blue-600 rounded-b-full shadow-sm shadow-blue-500/50"></span>
+                                        <span className="absolute bottom-0 w-12 h-1 bg-blue-600 rounded-t-full shadow-[0_-2px_10px_rgba(37,99,235,0.5)]"></span>
                                     )}
-                                    <tab.icon size={24} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
-                                    <span className="text-[10px] font-medium mt-1">{tab.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -508,27 +561,28 @@
                     
                     {/* Delete Confirmation Modal */}
                     {itemToDelete && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setItemToDelete(null)} />
-                            <div className="bg-white w-full max-w-xs rounded-3xl shadow-2xl z-10 p-6 animate-in zoom-in-95">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 mb-4 animate-bounce">
-                                        <AlertTriangle size={28} />
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-fade-in-up" onClick={() => setItemToDelete(null)} />
+                            <div className="bg-white w-full max-w-xs rounded-[32px] shadow-2xl z-10 p-6 animate-scale-in relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-rose-500"></div>
+                                <div className="flex flex-col items-center text-center pt-2">
+                                    <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-5 shadow-inner ring-4 ring-rose-50">
+                                        <Trash2 size={32} />
                                     </div>
-                                    <h3 className="text-xl font-bold text-slate-900 mb-2">លុបចេញ?</h3>
-                                    <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-                                        ទិន្នន័យ <strong>{itemToDelete.type}</strong> នឹងត្រូវបានលុបជាអចិន្ត្រៃយ៍។
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">លុបចេញ?</h3>
+                                    <p className="text-sm text-slate-500 mb-8 leading-relaxed px-2">
+                                        ទិន្នន័យ <strong>{itemToDelete.type}</strong> នឹងត្រូវបានលុបជាអចិន្ត្រៃយ៍។ មិនអាចត្រឡប់វិញបានទេ។
                                     </p>
                                     <div className="flex gap-3 w-full">
                                         <button 
                                             onClick={() => setItemToDelete(null)}
-                                            className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 text-sm"
+                                            className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 text-sm transition-colors"
                                         >
                                             បោះបង់
                                         </button>
                                         <button 
                                             onClick={confirmDelete}
-                                            className="flex-1 py-3.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-lg shadow-rose-600/30 text-sm"
+                                            className="flex-1 py-3.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-lg shadow-rose-600/30 text-sm transition-transform active:scale-95"
                                         >
                                             លុប
                                         </button>
@@ -541,51 +595,58 @@
                     {/* Add/Edit Bottom Sheet Modal */}
                     {isModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsModalOpen(false)} />
-                            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 p-6 animate-in slide-in-from-bottom-full duration-300 pb-safe">
-                                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-bold text-slate-900">
-                                        {editingId ? 'កែប្រែទិន្នន័យ' : 'បញ្ចូលថ្មី'}
-                                    </h2>
-                                    <div className="flex items-center gap-2">
-                                        {editingId && (
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-fade-in-up" onClick={() => setIsModalOpen(false)} />
+                            <div className="bg-white w-full sm:max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl z-10 p-6 animate-slide-up pb-safe max-h-[90vh] overflow-y-auto hide-scrollbar relative">
+                                
+                                <div className="sticky top-0 bg-white z-20 pb-2">
+                                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-slate-800">
+                                                {editingId ? 'កែប្រែទិន្នន័យ' : 'បញ្ចូលថ្មី'}
+                                            </h2>
+                                            <p className="text-xs text-slate-400 font-medium mt-1">សូមបំពេញព័ត៌មានខាងក្រោម</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {editingId && (
+                                                <button 
+                                                    onClick={() => handleDeleteClick({id: editingId, type: newItemType})}
+                                                    className="w-10 h-10 flex items-center justify-center text-rose-500 bg-rose-50 rounded-full hover:bg-rose-100 transition-colors"
+                                                >
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            )}
                                             <button 
-                                                onClick={() => handleDeleteClick({id: editingId, type: newItemType})}
-                                                className="text-rose-500 bg-rose-50 p-2 rounded-full hover:bg-rose-100 transition-colors"
-                                                title="លុប"
+                                                onClick={() => setIsModalOpen(false)}
+                                                className="w-10 h-10 flex items-center justify-center text-slate-400 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
                                             >
-                                                <Trash2 size={20} />
+                                                <X size={22} />
                                             </button>
-                                        )}
-                                        <button 
-                                            onClick={() => setIsModalOpen(false)}
-                                            className="text-slate-400 bg-slate-100 p-2 rounded-full hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                                            title="បិទ"
-                                        >
-                                            <X size={20} />
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <form onSubmit={handleSaveItem} className="space-y-6">
+                                <form onSubmit={handleSaveItem} className="space-y-6 mt-2">
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-500 mb-3">ប្រភេទសម្ភារៈ</label>
-                                        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto hide-scrollbar p-1">
+                                        <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">ប្រភេទសម្ភារៈ</label>
+                                        <div className="grid grid-cols-3 gap-3">
                                             {ITEM_TYPES.map((type) => (
                                                 <button
                                                     key={type.id}
                                                     type="button"
                                                     onClick={() => setNewItemType(type.label)}
                                                     className={`
-                                                        flex flex-col items-center justify-center p-3 rounded-2xl border transition-all active:scale-95
+                                                        flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-200 relative overflow-hidden
                                                         ${newItemType === type.label 
-                                                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600 ring-offset-1' 
-                                                            : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-white'}
+                                                            ? 'border-blue-500 bg-blue-50/50 text-blue-700 shadow-inner ring-2 ring-blue-500 ring-offset-2' 
+                                                            : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-slate-300'}
                                                     `}
                                                 >
-                                                    <div className="mb-2">{type.icon}</div>
-                                                    <span className="text-[10px] font-bold text-center leading-tight">{type.label}</span>
+                                                    <div className="mb-2 relative z-10">{type.icon}</div>
+                                                    <span className="text-[10px] font-bold text-center leading-tight relative z-10">{type.label}</span>
+                                                    {newItemType === type.label && (
+                                                        <div className="absolute inset-0 bg-blue-100/20 z-0"></div>
+                                                    )}
                                                 </button>
                                             ))}
                                         </div>
@@ -593,29 +654,29 @@
 
                                     <div className="flex gap-4">
                                         <div className="flex-1">
-                                           <label className="block text-sm font-bold text-slate-500 mb-2">ស្ថានភាព</label>
+                                           <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">ស្ថានភាព</label>
                                            <div className="relative">
                                                <select 
                                                    value={newStatus} 
                                                    onChange={(e) => setNewStatus(e.target.value)} 
-                                                   className="w-full bg-slate-50 border-none rounded-2xl px-4 py-4 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                                                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white appearance-none transition-all"
                                                >
                                                  {STATUS_OPTIONS.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
                                                </select>
                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                                   <ChevronRight size={16} className="rotate-90" />
+                                                   <ChevronRight size={18} className="rotate-90" />
                                                </div>
                                            </div>
                                         </div>
                                         <div className="w-1/3">
-                                            <label className="block text-sm font-bold text-slate-500 mb-2">ចំនួន</label>
-                                            <div className="relative">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2 ml-1">ចំនួន</label>
+                                            <div className="relative group">
                                                 <input 
                                                     type="number" 
                                                     min="1" 
                                                     value={quantity} 
                                                     onChange={(e) => setQuantity(e.target.value)} 
-                                                    className="w-full bg-slate-50 border-none rounded-2xl px-4 py-4 text-center text-lg font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" 
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-center text-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all" 
                                                 />
                                             </div>
                                         </div>
@@ -623,12 +684,14 @@
 
                                     {/* Warning Message for Duplicates */}
                                     {isDuplicate && (
-                                        <div className="flex items-start gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100">
-                                            <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                                        <div className="flex items-start gap-4 bg-amber-50/80 p-4 rounded-2xl border border-amber-100 animate-scale-in">
+                                            <div className="p-2 bg-amber-100 rounded-full text-amber-600 shrink-0">
+                                                <AlertCircle size={20} />
+                                            </div>
                                             <div>
                                                 <p className="text-sm font-bold text-amber-800">ទិន្នន័យនេះមានរួចហើយ!</p>
                                                 <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                                                    ប្រភេទ <b>{newItemType}</b> ({newStatus}) មានក្នុងស្តុករួចហើយ។ សូមចូលទៅកែប្រែ (Edit) លើទិន្នន័យដែលមានស្រាប់។
+                                                    សូមចូលទៅកែប្រែ (Edit) លើទិន្នន័យដែលមានស្រាប់ជំនួសវិញ។
                                                 </p>
                                             </div>
                                         </div>
@@ -637,15 +700,24 @@
                                     <button 
                                         type="submit" 
                                         disabled={isSubmitting || isDuplicate} 
-                                        className={`w-full font-bold py-4 rounded-2xl text-lg shadow-lg transition-all mt-4
+                                        className={`w-full font-bold py-4 rounded-2xl text-lg shadow-lg transition-all duration-300 mt-2 flex items-center justify-center gap-2
                                             ${isDuplicate 
-                                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
-                                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30 active:scale-[0.98]'
+                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200' 
+                                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-blue-600/30 active:scale-[0.98]'
                                             }
-                                            ${isSubmitting ? 'opacity-70 scale-100' : ''}
+                                            ${isSubmitting ? 'opacity-80 cursor-wait' : ''}
                                         `}
                                     >
-                                        {isSubmitting ? 'កំពុងរក្សាទុក...' : (editingId ? 'កែប្រែទិន្នន័យ' : 'រក្សាទុក')}
+                                        {isSubmitting ? (
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                <span>កំពុងរក្សាទុក...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {editingId ? 'កែប្រែទិន្នន័យ' : 'រក្សាទុក'}
+                                            </>
+                                        )}
                                     </button>
                                 </form>
                             </div>
