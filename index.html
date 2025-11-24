@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MEN PC Inventory System (Clean Mobile UI)</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Babel for JSX support -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Font for Khmer Language -->
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Kantumruy Pro', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Hide Scrollbar but allow scrolling */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Safe area for mobile */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .pt-safe {
+            padding-top: env(safe-area-inset-top);
+        }
+        
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+
+    <!-- Import Map for React & Firebase modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+            "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+        }
+    }
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-100 selection:text-blue-700">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { initializeApp } from 'firebase/app';
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            onAuthStateChanged,
+            signOut 
+        } from 'firebase/auth';
+        
+        import { 
+            getDatabase, 
+            ref, 
+            push, 
+            set, 
+            update, 
+            remove, 
+            onValue 
+        } from 'firebase/database';
+
+        import { 
+            Plus, 
+            Trash2, 
+            Pencil, 
+            Monitor, 
+            HardDrive, 
+            MousePointer, 
+            Keyboard, 
+            Cable, 
+            Headphones, 
+            Wrench, 
+            XCircle, 
+            CheckCircle2, 
+            X, 
+            Search, 
+            Box, 
+            Home, 
+            BarChart2, 
+            User, 
+            LogOut, 
+            AlertTriangle,
+            AlertCircle,
+            Database,
+            ChevronRight,
+            Package
+        } from 'lucide-react';
+
+        // --- Firebase Configuration ---
+        const inventoryConfig = {
+            apiKey: "AIzaSyACtQoZQ_LOe3ijNZAWt-hcb2BF3cDBiLk",
+            authDomain: "managermenpcdi.firebaseapp.com",
+            databaseURL: "https://managermenpcdi-default-rtdb.firebaseio.com",
+            projectId: "managermenpcdi",
+            storageBucket: "managermenpcdi.firebasestorage.app",
+            messagingSenderId: "740667442678",
+            appId: "1:740667442678:web:ac672dd9ebfeaf439e33d7",
+            measurementId: "G-G818R0HG3Q"
+        };
+
+        const app = initializeApp(inventoryConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        // --- Constants ---
+        const ITEM_TYPES = [
+            { id: 'case', label: 'Case', icon: <HardDrive size={24} /> },
+            { id: 'monitor', label: 'Monitor', icon: <Monitor size={24} /> },
+            { id: 'keyboard', label: 'Keyboard', icon: <Keyboard size={24} /> },
+            { id: 'mouse', label: 'Mouse', icon: <MousePointer size={24} /> },
+            { id: 'mouse_pad', label: 'Mouse Pad', icon: <div className="w-6 h-6 border-2 border-current rounded bg-current opacity-50" /> },
+            { id: 'headset', label: 'Headset', icon: <Headphones size={24} /> },
+            { id: 'adapter_monitor', label: 'Adapter Monitor', icon: <Cable size={24} /> },
+            { id: 'adapter_power', label: 'Adapter Power', icon: <Cable size={24} /> },
+            { id: 'hdmi', label: 'HDMI', icon: <Cable size={24} /> },
+        ];
+
+        const STATUS_OPTIONS = [
+            { id: 'using', label: 'កំពុងប្រើប្រាស់', color: 'bg-emerald-100 text-emerald-700 ring-emerald-500/20', icon: <CheckCircle2 size={16} /> },
+            { id: 'repairing', label: 'ជួសជុល', color: 'bg-amber-100 text-amber-700 ring-amber-500/20', icon: <Wrench size={16} /> },
+            { id: 'broken', label: 'ខូច', color: 'bg-rose-100 text-rose-700 ring-rose-500/20', icon: <XCircle size={16} /> },
+        ];
+
+        function InventoryApp() {
+            const [user, setUser] = useState(null);
+            const [items, setItems] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [dbStatus, setDbStatus] = useState('connecting');
+            const [itemToDelete, setItemToDelete] = useState(null);
+            const [activeTab, setActiveTab] = useState('home'); 
+            const [editingId, setEditingId] = useState(null);
+            const [newItemType, setNewItemType] = useState(ITEM_TYPES[0].label);
+            const [newStatus, setNewStatus] = useState(STATUS_OPTIONS[0].label);
+            const [quantity, setQuantity] = useState(1);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            useEffect(() => {
+                signInAnonymously(auth).catch((err) => {
+                    console.warn("Auth skipped or failed:", err);
+                });
+                onAuthStateChanged(auth, setUser);
+            }, []);
+
+            useEffect(() => {
+                const inventoryRef = ref(db, 'inventory');
+                const unsubscribe = onValue(inventoryRef, (snapshot) => {
+                    const data = snapshot.val();
+                    const fetchedItems = [];
+                    if (data) {
+                        Object.keys(data).forEach((key) => {
+                            fetchedItems.push({ id: key, ...data[key] });
+                        });
+                    }
+                    fetchedItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    setItems(fetchedItems);
+                    setLoading(false);
+                    setDbStatus('connected');
+                }, (error) => {
+                    console.error("Database Error:", error);
+                    setLoading(false);
+                    setDbStatus('error');
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // Handlers
+            const handleOpenAdd = () => {
+                setEditingId(null);
+                setNewItemType(ITEM_TYPES[0].label);
+                setNewStatus(STATUS_OPTIONS[0].label);
+                setQuantity(1);
+                setIsModalOpen(true);
+            };
+
+            const handleOpenEdit = (item) => {
+                setEditingId(item.id);
+                setNewItemType(item.type);
+                setNewStatus(item.status);
+                setQuantity(item.quantity);
+                setIsModalOpen(true);
+            };
+
+            const handleSaveItem = async (e) => {
+                e.preventDefault();
+                if (quantity < 1) return;
+                setIsSubmitting(true);
+                const userId = user ? user.uid : 'public_user'; 
+                try {
+                    const timestamp = Date.now();
+                    if (editingId) {
+                        await update(ref(db, 'inventory/' + editingId), {
+                            type: newItemType,
+                            status: newStatus,
+                            quantity: parseInt(quantity),
+                            updatedAt: timestamp,
+                            lastModifiedBy: userId
+                        });
+                    } else {
+                        await set(push(ref(db, 'inventory')), {
+                            type: newItemType,
+                            status: newStatus,
+                            quantity: parseInt(quantity),
+                            createdAt: timestamp,
+                            createdBy: userId
+                        });
+                    }
+                    setQuantity(1);
+                    setIsModalOpen(false);
+                    setActiveTab('home');
+                } catch (error) {
+                    alert("បរាជ័យក្នុងការរក្សាទុក។");
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const confirmDelete = async () => {
+                if (!itemToDelete) return;
+                try {
+                    await remove(ref(db, 'inventory/' + itemToDelete.id));
+                    setItemToDelete(null); 
+                } catch (error) {
+                    alert("មិនអាចលុបបានទេ។");
+                }
+            };
+
+            // Stats
+            const stats = useMemo(() => {
+                const initial = { using: 0, repairing: 0, broken: 0, total: 0 };
+                return items.reduce((acc, item) => {
+                    const qty = item.quantity || 0;
+                    acc.total += qty;
+                    if (item.status === 'កំពុងប្រើប្រាស់') acc.using += qty;
+                    else if (item.status === 'ជួសជុល') acc.repairing += qty;
+                    else if (item.status === 'ខូច') acc.broken += qty;
+                    return acc;
+                }, initial);
+            }, [items]);
+
+            const filteredItems = items.filter(item => 
+                item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.status.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            const getStatusStyle = (statusLabel) => STATUS_OPTIONS.find(s => s.label === statusLabel) || STATUS_OPTIONS[0];
+            const getItemIcon = (typeLabel) => (ITEM_TYPES.find(t => t.label === typeLabel) || ITEM_TYPES[0]).icon;
+
+            if (loading && !items.length) return (
+                <div className="flex h-screen items-center justify-center bg-slate-50">
+                    <div className="flex flex-col items-center">
+                        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p className="text-slate-500 font-medium">កំពុងផ្ទុកទិន្នន័យ...</p>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="h-screen w-full bg-slate-50 flex flex-col font-sans overflow-hidden">
+                    
+                    {/* --- Content Area --- */}
+                    <main className="flex-1 overflow-y-auto hide-scrollbar pb-32">
+                        
+                        {/* VIEW 1: HOME */}
+                        {activeTab === 'home' && (
+                            <>
+                                {/* Modern Header with Search */}
+                                <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200/60 pt-safe px-5 pb-4">
+                                    <div className="flex items-center justify-between py-4">
+                                        <div>
+                                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">ស្តុកសម្ភារៈ</h1>
+                                            <p className="text-xs font-medium text-slate-500">MEN PC Inventory • RTDB</p>
+                                        </div>
+                                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                                            <Database size={20} />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <Search className="h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            className="block w-full pl-10 pr-3 py-3.5 border-none rounded-2xl bg-slate-100 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white transition-all shadow-sm" 
+                                            placeholder="ស្វែងរកសម្ភារៈ..." 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Inventory List */}
+                                <div className="px-5 pt-6 pb-6">
+                                    <h2 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wider flex justify-between items-center">
+                                        <span>បញ្ជី ({filteredItems.length})</span>
+                                    </h2>
+                                    <div className="space-y-3">
+                                        {filteredItems.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                                                    <Package size={32} />
+                                                </div>
+                                                <p className="text-slate-500 font-medium">មិនមានទិន្នន័យទេ</p>
+                                                <p className="text-xs text-slate-400 mt-1">សូមចុចប៊ូតុង + ដើម្បីបន្ថែម</p>
+                                            </div>
+                                        ) : (
+                                            filteredItems.map((item) => {
+                                                const statusInfo = getStatusStyle(item.status);
+                                                return (
+                                                    <div 
+                                                        key={item.id} 
+                                                        onClick={() => handleOpenEdit(item)}
+                                                        className="group bg-white p-4 rounded-2xl shadow-sm border border-slate-100 active:scale-[0.98] transition-all relative overflow-hidden"
+                                                    >
+                                                        <div className="flex items-center gap-4 relative z-10">
+                                                            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
+                                                                {getItemIcon(item.type)}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex justify-between items-start">
+                                                                    <h3 className="font-bold text-slate-900 truncate text-base">{item.type}</h3>
+                                                                    <span className="text-lg font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg min-w-[2rem] text-center">
+                                                                        {item.quantity}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1.5">
+                                                                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 ring-1 ring-inset ${statusInfo.color}`}>
+                                                                        {statusInfo.icon}
+                                                                        {statusInfo.label}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-slate-300">
+                                                                <ChevronRight size={20} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* VIEW 2: STATS PAGE */}
+                        {activeTab === 'stats' && (
+                            <div className="pt-safe px-5 pb-6">
+                                <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-6">របាយការណ៍</h1>
+                                <div className="space-y-4">
+                                    <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white p-6 rounded-3xl shadow-lg shadow-blue-600/20 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                                        <p className="text-blue-100 text-sm font-medium mb-1">ចំនួនសរុបទាំងអស់</p>
+                                        <h2 className="text-5xl font-bold tracking-tight">{stats.total}</h2>
+                                        <p className="text-blue-200 text-xs mt-2">ឯកតាក្នុងស្តុក</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {[
+                                            { label: 'កំពុងប្រើប្រាស់', count: stats.using, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <CheckCircle2 /> },
+                                            { label: 'ជួសជុល', count: stats.repairing, color: 'text-amber-600', bg: 'bg-amber-50', icon: <Wrench /> },
+                                            { label: 'ខូច', count: stats.broken, color: 'text-rose-600', bg: 'bg-rose-50', icon: <XCircle /> },
+                                        ].map((stat, idx) => (
+                                            <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-12 h-12 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                                                        {stat.icon}
+                                                    </div>
+                                                    <span className="font-medium text-slate-600">{stat.label}</span>
+                                                </div>
+                                                <span className={`text-2xl font-bold ${stat.color}`}>{stat.count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW 3: PROFILE */}
+                        {activeTab === 'profile' && (
+                            <div className="pt-safe px-5 flex flex-col items-center justify-center min-h-[70vh]">
+                                <div className="w-24 h-24 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-300 mb-6 border-4 border-slate-50">
+                                    <User size={48} />
+                                </div>
+                                <h2 className="text-xl font-bold text-slate-900">{user ? "Admin User" : "Public Guest"}</h2>
+                                <p className="text-sm text-slate-400 font-mono mt-1 mb-6">
+                                    UID: {user ? user.uid.slice(0, 8) : 'N/A'}...
+                                </p>
+                                
+                                <div className="w-full max-w-xs space-y-3">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
+                                        <span className="text-slate-500 text-sm">ស្ថានភាព</span>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${user ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                            {user ? 'Online' : 'Guest'}
+                                        </span>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => { if(confirm('ចាកចេញ?')) signOut(auth); }} 
+                                        disabled={!user}
+                                        className="w-full bg-rose-50 text-rose-600 font-bold p-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <LogOut size={20} />
+                                        ចាកចេញ
+                                    </button>
+                                </div>
+                                <p className="mt-8 text-xs text-slate-300 text-center">Version 2.0.0 (RTDB)</p>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* FAB (Floating Action Button) */}
+                    {activeTab === 'home' && (
+                        <div className="fixed bottom-24 right-5 z-30">
+                            <button 
+                                onClick={handleOpenAdd}
+                                className="w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/40 flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+                            >
+                                <Plus size={32} strokeWidth={2.5} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Bottom Navigation */}
+                    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 pb-safe z-40">
+                        <div className="flex justify-around items-center h-16">
+                            {[
+                                { id: 'home', icon: Home, label: 'ទំព័រដើម' },
+                                { id: 'stats', icon: BarChart2, label: 'ស្ថិតិ' },
+                                { id: 'profile', icon: User, label: 'គណនី' },
+                            ].map((tab) => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`relative flex flex-col items-center justify-center w-full h-full transition-colors ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-400'}`}
+                                >
+                                    {activeTab === tab.id && (
+                                        <span className="absolute top-0 w-8 h-1 bg-blue-600 rounded-b-full shadow-sm shadow-blue-500/50"></span>
+                                    )}
+                                    <tab.icon size={24} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+                                    <span className="text-[10px] font-medium mt-1">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Modals & Overlays */}
+                    
+                    {/* Delete Confirmation Modal */}
+                    {itemToDelete && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setItemToDelete(null)} />
+                            <div className="bg-white w-full max-w-xs rounded-3xl shadow-2xl z-10 p-6 animate-in zoom-in-95">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 mb-4 animate-bounce">
+                                        <AlertTriangle size={28} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-900 mb-2">លុបចេញ?</h3>
+                                    <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                                        ទិន្នន័យ <strong>{itemToDelete.type}</strong> នឹងត្រូវបានលុបជាអចិន្ត្រៃយ៍។
+                                    </p>
+                                    <div className="flex gap-3 w-full">
+                                        <button 
+                                            onClick={() => setItemToDelete(null)}
+                                            className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 text-sm"
+                                        >
+                                            បោះបង់
+                                        </button>
+                                        <button 
+                                            onClick={confirmDelete}
+                                            className="flex-1 py-3.5 rounded-2xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-lg shadow-rose-600/30 text-sm"
+                                        >
+                                            លុប
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Add/Edit Bottom Sheet Modal */}
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsModalOpen(false)} />
+                            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl z-10 p-6 animate-in slide-in-from-bottom-full duration-300 pb-safe">
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-xl font-bold text-slate-900">
+                                        {editingId ? 'កែប្រែទិន្នន័យ' : 'បញ្ចូលថ្មី'}
+                                    </h2>
+                                    {editingId && (
+                                        <button 
+                                            onClick={() => handleDeleteClick({id: editingId, type: newItemType})}
+                                            className="text-rose-500 bg-rose-50 p-2 rounded-full hover:bg-rose-100"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <form onSubmit={handleSaveItem} className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-500 mb-3">ប្រភេទសម្ភារៈ</label>
+                                        <div className="grid grid-cols-3 gap-3 max-h-48 overflow-y-auto hide-scrollbar p-1">
+                                            {ITEM_TYPES.map((type) => (
+                                                <button
+                                                    key={type.id}
+                                                    type="button"
+                                                    onClick={() => setNewItemType(type.label)}
+                                                    className={`
+                                                        flex flex-col items-center justify-center p-3 rounded-2xl border transition-all active:scale-95
+                                                        ${newItemType === type.label 
+                                                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600 ring-offset-1' 
+                                                            : 'border-slate-200 text-slate-600 bg-slate-50 hover:bg-white'}
+                                                    `}
+                                                >
+                                                    <div className="mb-2">{type.icon}</div>
+                                                    <span className="text-[10px] font-bold text-center leading-tight">{type.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                           <label className="block text-sm font-bold text-slate-500 mb-2">ស្ថានភាព</label>
+                                           <div className="relative">
+                                               <select 
+                                                   value={newStatus} 
+                                                   onChange={(e) => setNewStatus(e.target.value)} 
+                                                   className="w-full bg-slate-50 border-none rounded-2xl px-4 py-4 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                                               >
+                                                 {STATUS_OPTIONS.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
+                                               </select>
+                                               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                   <ChevronRight size={16} className="rotate-90" />
+                                               </div>
+                                           </div>
+                                        </div>
+                                        <div className="w-1/3">
+                                            <label className="block text-sm font-bold text-slate-500 mb-2">ចំនួន</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="number" 
+                                                    min="1" 
+                                                    value={quantity} 
+                                                    onChange={(e) => setQuantity(e.target.value)} 
+                                                    className="w-full bg-slate-50 border-none rounded-2xl px-4 py-4 text-center text-lg font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button 
+                                        type="submit" 
+                                        disabled={isSubmitting} 
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl text-lg shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:scale-100 mt-4"
+                                    >
+                                        {isSubmitting ? '...' : 'រក្សាទុក'}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<InventoryApp />);
+    </script>
+</body>
+</html>
