@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MEN PC Inventory System (Date & Time Tracking)</title>
+    <title>MEN PC Inventory System (Close Button Added)</title>
     
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -174,7 +174,7 @@
                             fetchedItems.push({ id: key, ...data[key] });
                         });
                     }
-                    // Sort by updatedAt desc (Latest update first)
+                    // Sort by updatedAt desc
                     fetchedItems.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
                     setItems(fetchedItems);
                     setLoading(false);
@@ -231,13 +231,12 @@
                 setIsSubmitting(true);
                 const userId = user ? user.uid : 'public_user'; 
                 try {
-                    // --- Date & Time Logic ---
                     const now = new Date();
-                    const timestamp = now.getTime(); // Timestamp for sorting/logic
-                    const readableDate = now.toLocaleString('en-GB'); // Readable string "DD/MM/YYYY, HH:mm:ss"
+                    const timestamp = now.getTime(); 
+                    const readableDate = now.toLocaleString('en-GB'); 
 
                     if (editingId) {
-                        // UPDATE: Save updatedAt and lastUpdated string
+                        // UPDATE
                         await update(ref(db, 'inventory/' + editingId), {
                             type: newItemType,
                             status: newStatus,
@@ -247,7 +246,7 @@
                             lastModifiedBy: userId
                         });
                     } else {
-                        // CREATE: Save createdAt, updatedAt, and lastUpdatedDate
+                        // CREATE
                         await set(push(ref(db, 'inventory')), {
                             type: newItemType,
                             status: newStatus,
@@ -266,6 +265,11 @@
                 } finally {
                     setIsSubmitting(false);
                 }
+            };
+
+            const handleDeleteClick = (item) => {
+                setItemToDelete(item);
+                setIsModalOpen(false);
             };
 
             const confirmDelete = async () => {
@@ -381,7 +385,6 @@
                                                                         {statusInfo.icon}
                                                                         {statusInfo.label}
                                                                     </span>
-                                                                    {/* Date Display */}
                                                                     <span className="text-[10px] text-slate-400 flex items-center gap-1 ml-auto font-medium">
                                                                         <Clock size={10} />
                                                                         {formatDate(item.updatedAt)}
@@ -545,14 +548,24 @@
                                     <h2 className="text-xl font-bold text-slate-900">
                                         {editingId ? 'កែប្រែទិន្នន័យ' : 'បញ្ចូលថ្មី'}
                                     </h2>
-                                    {editingId && (
+                                    <div className="flex items-center gap-2">
+                                        {editingId && (
+                                            <button 
+                                                onClick={() => handleDeleteClick({id: editingId, type: newItemType})}
+                                                className="text-rose-500 bg-rose-50 p-2 rounded-full hover:bg-rose-100 transition-colors"
+                                                title="លុប"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        )}
                                         <button 
-                                            onClick={() => handleDeleteClick({id: editingId, type: newItemType})}
-                                            className="text-rose-500 bg-rose-50 p-2 rounded-full hover:bg-rose-100"
+                                            onClick={() => setIsModalOpen(false)}
+                                            className="text-slate-400 bg-slate-100 p-2 rounded-full hover:bg-slate-200 hover:text-slate-600 transition-colors"
+                                            title="បិទ"
                                         >
-                                            <Trash2 size={20} />
+                                            <X size={20} />
                                         </button>
-                                    )}
+                                    </div>
                                 </div>
 
                                 <form onSubmit={handleSaveItem} className="space-y-6">
