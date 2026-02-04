@@ -7,7 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -117,7 +117,7 @@
             Clock,
             LayoutGrid,
             Settings,
-            Archive // Icon for Available
+            Archive 
         } from 'lucide-react';
 
         // --- Firebase Configuration ---
@@ -251,23 +251,23 @@
                     const timestamp = now.getTime(); 
                     const readableDate = now.toLocaleString('en-GB'); 
 
+                    const itemData = {
+                        type: newItemType,
+                        status: newStatus,
+                        quantity: parseInt(quantity),
+                        updatedAt: timestamp,
+                        lastUpdatedDate: readableDate,
+                    };
+
                     if (editingId) {
                         await update(ref(db, 'inventory/' + editingId), {
-                            type: newItemType,
-                            status: newStatus,
-                            quantity: parseInt(quantity),
-                            updatedAt: timestamp,
-                            lastUpdatedDate: readableDate,
+                            ...itemData,
                             lastModifiedBy: userId
                         });
                     } else {
                         await set(push(ref(db, 'inventory')), {
-                            type: newItemType,
-                            status: newStatus,
-                            quantity: parseInt(quantity),
+                            ...itemData,
                             createdAt: timestamp,
-                            updatedAt: timestamp,
-                            lastUpdatedDate: readableDate,
                             createdBy: userId
                         });
                     }
